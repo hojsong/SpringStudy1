@@ -3,8 +3,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.SneakyThrows;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -67,8 +72,21 @@ public class Oauth2Service {
 
         HttpEntity<String> request = new HttpEntity<>(headers);
 
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
+        ResponseEntity<String> response;
 
-        return response.getBody();
+        try {
+            response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
+            return response.getBody();
+        }
+        catch (HttpClientErrorException.NotFound e){
+            System.out.println("404 Error");
+        }catch (HttpClientErrorException e){
+            System.out.println("4?? Error");
+        }catch (HttpServerErrorException e){
+            System.out.println("5?? Error");
+        }catch (RestClientException e){
+            System.out.println("??? Error");
+        }
+        return "";
     }
 }
