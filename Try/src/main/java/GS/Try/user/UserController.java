@@ -47,17 +47,15 @@ public class UserController extends HttpServlet {
     }
 
     @GetMapping("Hello")
-    public String Hello() throws IOException {
-//        userService.getAllCampus();
-//        return "Hello";
-        return userService.getCampusUserDataAll(69).toString();
+    public String Hello() throws IOException, InterruptedException {
+//        userService.getAllUsersData();
+        return "Hello";
+
+//        return userService.getCampusUserDataAll(69).toString();
     }
 
     @GetMapping("DataAllReset")
     public String LoginSed(HttpServletRequest request, Model model) throws InterruptedException, IOException {
-        userService.getAllUsersData();
-//        return userService.getUserAllDataByAdmin(request, model);
-        return "Hello";.
-        gi
+        return userService.getUserAllDataByAdmin(request, model);
     }
 }

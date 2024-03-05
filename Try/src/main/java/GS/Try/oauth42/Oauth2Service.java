@@ -79,13 +79,13 @@ public class Oauth2Service {
             return response.getBody();
         }
         catch (HttpClientErrorException.NotFound e){
-            System.out.println("404 Error");
+            System.out.println(e);
         }catch (HttpClientErrorException e){
-            System.out.println("4?? Error");
+            System.out.println(e);
         }catch (HttpServerErrorException e){
-            System.out.println("5?? Error");
+            System.out.println(e);
         }catch (RestClientException e){
-            System.out.println("??? Error");
+            System.out.println(e);
         }
         return "";
     }
