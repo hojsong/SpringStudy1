@@ -1,29 +1,20 @@
 package GS.Try.user;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jws;
-import io.jsonwebtoken.Jwts;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.view.RedirectView;
 
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.io.IOException;
-import java.util.*;
 
-@RestController
+//@RestController
+@Controller
 public class UserController extends HttpServlet {
 
     @Value("${api-url}")
@@ -48,10 +39,7 @@ public class UserController extends HttpServlet {
 
     @GetMapping("Hello")
     public String Hello() throws IOException, InterruptedException {
-//        userService.getAllUsersData();
         return "Hello";
-
-//        return userService.getCampusUserDataAll(69).toString();
     }
 
     @GetMapping("DataAllReset")

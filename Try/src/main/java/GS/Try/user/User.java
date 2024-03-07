@@ -19,6 +19,9 @@ public class User {
     private String login;
     private String grade;
     private String campus_id;
+    private String large;
+    private String small;
+    private String micro;
     private int correction_point;
 
     public void setId(Long id) {

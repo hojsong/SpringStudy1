@@ -11,6 +11,7 @@ import io.jsonwebtoken.Jwts;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -38,11 +39,17 @@ public class UserService {
     private String clientSecret;
     @Value("${redirect-uri}")
     private String reurl;
+    @Value("${admin-id}")
+    private String aid;
+    @Value("${admin-name}")
+    private String aname;
 
+    @Getter
     private String AccesToken;
     private int activateEvPoint;
     private List<String> userIdList;
     private Key key;
+
     @Autowired
     public UserService(UserRepository userRepository, Oauth2Service oauth2Service){
         this.userRepository = userRepository;
@@ -53,16 +60,13 @@ public class UserService {
         String Token = null;
         Cookie[] cookies = request.getCookies();
 
-        if (cookies != null){
-            for (Cookie cookie : cookies) {
-                if (cookie.getName().equals("token")) {
+        if (cookies != null) {
+            for (Cookie cookie : cookies)
+                if (cookie.getName().equals("token"))
                     Token = cookie.getValue();
-                }
-            }
         }
 
-        System.out.println("Token = " + Token);
-        if (Token.isEmpty()) {
+        if (Token.isEmpty() || this.key == null) {
             model.addAttribute("message", "Failed to retrieve token information.");
             return "Error";
         }
@@ -70,77 +74,23 @@ public class UserService {
 
         Jws<Claims> jws = Jwts.parserBuilder().setSigningKey(this.key).build().parseClaimsJws(Token);
         System.out.println(jws.getBody());
+        String id = jws.getBody().get("id", Integer.class).toString();
+        System.out.println("id = " + id);
+        String name = jws.getBody().get("name", String.class);
+        System.out.println("name = " + name);
 
-        getAllUsersData();
-        model.addAttribute("message", "Data All Search Complete");
-        return "Complete";
-    }
-
-    public void getAllCampus() throws IOException {
-        String requsturi = "/v2/campus?page=";
-        int idx = 1;
-        while (true) {
-            String campusData = getJsonData(this.AccesToken, requsturi + idx);
-            if (campusData.isEmpty() || campusData.equals("[]")) {
-                break;
-            }
-            System.out.println("page" + idx + " : " + campusData);
-            idx++;
+        if (aid.equals(id) && aname.equals(name)){
+            getAllUsersData();
+            model.addAttribute("message", "Data All Search Complete");
+            return "Complete";
         }
-    }
+        model.addAttribute("message", "Permission denied");
+        return "Error";
 
-
-    // 피시너 데이터까지 다긁어온다.
-    public List<String> getCampusUserDataAll(int campus_id) throws IOException {
-        String requsturi = "/v2/campus/" + campus_id + "/users?page=";
-        int pageNum = 1;
-        String myCampus = getJsonData(this.AccesToken, requsturi+pageNum);
-        pageNum++;
-        List<String> logins = extractValuesToList(myCampus,"id");
-        while (true){
-            myCampus = getJsonData(this.AccesToken, requsturi+pageNum);
-            if (myCampus == null || myCampus.isEmpty() || myCampus.equals("[]"))
-                break;
-            List<String> logs = extractValuesToList(myCampus,"id");
-            if (logs.isEmpty())
-                break;
-            System.out.println("pageNum = " + pageNum);
-            pageNum++;
-            logins.addAll(logs);
-        }
-        System.out.println("myCampus = " + myCampus);
-        System.out.println("logins.size = " + logins.size());
-        return logins;
     }
 
     public void findMeAndSave(HttpServletRequest request, HttpServletResponse response, String me) throws JsonProcessingException {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        User user = mapper.readValue(me, User.class);
-        JsonNode rootNode = mapper.readTree(me);
-
-        if (rootNode.toString().contains("\"grade\":\"Learner\""))
-            user.setGrade("Learner");
-        else if (rootNode.toString().contains("\"grade\":\"Member\""))
-            user.setGrade("Member");
-        else
-            user.setGrade("???");
-
-        Optional<User> originUser = userRepository.findById(user.getId());
-        if (originUser.isEmpty() || originUser == null) {
-            System.out.println("No Search USer");
-            userRepository.save(user);
-        }
-        else {
-            if (originUser.get().getId().equals(user.getId())) {
-                if (!originUser.get().getLogin().equals(user.getLogin()))
-                    originUser.get().setLogin(user.getLogin());
-                if (!originUser.get().getGrade().equals(user.getGrade()))
-                    originUser.get().setGrade(user.getGrade());
-            } else {
-                userRepository.save(user);
-            }
-        }
+        User user = getAndSaveUserByJson(me);
 
         byte[] byteKey = this.sek.getBytes(StandardCharsets.UTF_8);
         // SecretKeySpec으로 키 생성
@@ -176,11 +126,33 @@ public class UserService {
         response.addCookie(cookie);
     }
 
+    //Json Data -> User Save and Update, return User
+    private User getAndSaveUserByJson(String userData) throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        User user = mapper.readValue(userData, User.class);
+        JsonNode rootNode = mapper.readTree(userData);
+        if (rootNode.toString().contains("\"grade\":\"Learner\""))
+            user.setGrade("Learner");
+        else if (rootNode.toString().contains("\"grade\":\"Member\""))
+            user.setGrade("Member");
+        else
+            user.setGrade("???");
 
+        JsonNode imageNode = rootNode.path("image").path("versions");
+
+        user.setLarge(imageNode.path("large").asText());
+        user.setSmall(imageNode.path("small").asText());
+        user.setMicro(imageNode.path("micro").asText());
+
+        userRepository.save(user);
+        return user;
+    }
+
+    // getAccessToken By Code in intra42
     public String getAccessToken(String code) {
         String accessToken = oauth2Service.getAccessTokenWithCode(code, clientId, clientSecret, reurl);
         System.out.println("accessToken = " + accessToken);
-        // 액세스 토큰을 이용하여 'v2/me'에 GET 요청을 보냅니다.
         String me = oauth2Service.getMe(accessToken);
         System.out.println("me = " + me);
         this.AccesToken = accessToken;
@@ -192,63 +164,29 @@ public class UserService {
         activateEvPoint = 0;
 
         userIdList = getCoalitionUsersDataPutCampus("42Seoul");
-        putCampusOfUsersData(requsturi);
+        getActivePointAndUserResave(requsturi);
 
-        userIdList = getCoalitionUsersDataPutCampus("42Gyeongsan");
-        putCampusOfUsersData(requsturi);
+//        userIdList = getCoalitionUsersDataPutCampus("42Gyeongsan");
+//        getActivePointAndUserResave(requsturi);
 
         System.out.println("activateEvPoint = " + activateEvPoint);
     }
 
-    private void putCampusOfUsersData(String requsturi) throws JsonProcessingException, InterruptedException {
+    private void getActivePointAndUserResave(String requsturi) throws JsonProcessingException, InterruptedException {
         for (String idx : userIdList) {
             String userData = getJsonData(this.AccesToken, requsturi + idx + "/coalitions");
             Thread.sleep(1000);
-//            System.out.println("userData = " + userData);
             if(userData != null && !userData.isEmpty() && !userData.equals("[]")) {
-                ObjectMapper mapper = new ObjectMapper();
-                mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                User user = mapper.readValue(userData, User.class);
-                JsonNode rootNode = mapper.readTree(userData);
-                if (rootNode.toString().contains("\"grade\":\"Learner\""))
-                    user.setGrade("Learner");
-                else if (rootNode.toString().contains("\"grade\":\"Member\""))
-                    user.setGrade("Member");
-                else
-                    user.setGrade("???");
-
-                if (user.getGrade().equals("Learner") || user.getGrade().equals("Member")) {
-                    String login = user.getLogin();
-                    String grade = user.getGrade();
-                    int correction_point = user.getCorrection_point();
-
-                    System.out.println(idx + " : " + login + " / " + grade + " / " + correction_point);
-                    System.out.println("userData = " + userData);
+                User user = getAndSaveUserByJson(userData);    if (user.getGrade().equals("Learner"))
                     if (user.getGrade().equals("Learner"))
                         activateEvPoint += user.getCorrection_point();
-                    else if (user.getGrade().equals("MEMBER") && user.getCorrection_point() < 0)
+                    else if (user.getGrade().equals("Member") && user.getCorrection_point() < 0)
                         activateEvPoint -= user.getCorrection_point();
-                    userRepository.save(user);
-                }
             }
         }
     }
 
-    private static String getCampusidPutCampusString(String campus) {
-        String data;
-        if (campus.equals("42Seoul") || campus.equals("42seoul")
-                || campus.equals("Seoul") || campus.equals("seoul"))
-            data = "29";
-        else if (campus.equals("42Gyeongsan") || campus.equals("42gyeongsan")
-                || campus.equals("Gyeongsan") || campus.equals("gyeongsan"))
-            data ="69";
-        else
-            data = "0";
-        return data;
-    }
-
     public List<String> getCoalitionUsersDataPutCampus(String campus) throws IOException, InterruptedException {
-        // 건 곤 감 리 //
         String data = null;
         data = getCoalitionsPutCampusString(campus);
         if (data == null) return (null);
@@ -304,17 +242,4 @@ public class UserService {
 
         return values;
     }
-
-
-//    public String extractValueFromJson(String json, String key) throws IOException {
-//        ObjectMapper mapper = new ObjectMapper();
-//        JsonNode root = mapper.readTree(json);
-//
-//        if (root.has(key)) {
-//            return root.get(key).asText();
-//        } else {
-//            return null;
-//        }
-//    }
-
 }
